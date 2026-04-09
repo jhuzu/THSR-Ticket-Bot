@@ -262,5 +262,11 @@ def _format_booking_success(ticket) -> str:
 
 
 if __name__ == "__main__":
+    # 預載 ddddocr 模型，避免第一次訂票時等太久
+    print("正在預載驗證碼辨識模型...")
+    from thsr_ticket.ml.captcha_solver import get_solver
+    get_solver()
+    print("模型載入完成")
+
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
