@@ -11,3 +11,5 @@ dist/
 *.png
 test.py
 *.code-workspace
+booking_config.yaml
+venv/

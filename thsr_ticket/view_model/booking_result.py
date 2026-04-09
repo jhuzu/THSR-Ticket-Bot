@@ -25,7 +25,8 @@ class BookingResult(AbstractViewModel):
         train_id = page.find(**BOOKING_RESULT["train_id"]).text
         depart_time = page.find(**BOOKING_RESULT["depart_time"]).text
         arrival_time = page.find(**BOOKING_RESULT["arrival_time"]).text
-        seat_num = page.find(**BOOKING_RESULT["seat_num"]).find_next().text
+        seat_elements = page.find_all(**BOOKING_RESULT["seat_num"])
+        seat_num = ", ".join(el.get_text(strip=True) for el in seat_elements) if seat_elements else ""
         seat_class = page.find(**BOOKING_RESULT["seat_class"]).find_next().text
         depart_station = page.find(**BOOKING_RESULT["depart_station"]).find_next().text
         arrival_station = page.find(**BOOKING_RESULT["arrival_station"]).find_next().text
