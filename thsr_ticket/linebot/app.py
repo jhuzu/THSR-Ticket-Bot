@@ -239,19 +239,19 @@ def _format_booking_start(result) -> str:
 def _format_booking_success(ticket) -> str:
     return (
         f"訂票成功！\n"
-        f"{'─' * 16}\n"
+        f"{'─' * 10}\n"
         f"訂位代號：{ticket.id}\n"
         f"繳費期限：{ticket.payment_deadline}\n"
-        f"{'─' * 16}\n"
+        f"{'─' * 10}\n"
         f"日期：{ticket.date}\n"
         f"車次：{ticket.train_id}\n"
         f"{ticket.start_station} {ticket.depart_time} → "
         f"{ticket.dest_station} {ticket.arrival_time}\n"
-        f"{'─' * 16}\n"
+        f"{'─' * 10}\n"
         f"座位：{ticket.seat}\n"
         f"票種：{ticket.ticket_num_info}\n"
         f"總價：{ticket.price}\n"
-        f"{'─' * 16}\n"
+        f"{'─' * 10}\n"
         f"請至官方管道完成付款取票"
     )
 
