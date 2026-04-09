@@ -188,13 +188,8 @@ def _run_booking(user_id: str, result):
     from thsr_ticket.controller.booking_flow_auto import AutoBookingFlow
 
     try:
-        # 從環境變數或 booking_config.yaml 讀取個資
-        if os.path.exists(_DEFAULT_CONFIG_PATH):
-            config = BookingConfig.from_yaml(_DEFAULT_CONFIG_PATH)
-        else:
-            config = BookingConfig()
-            config.personal_id = os.environ.get("PERSONAL_ID", "")
-            config.phone = os.environ.get("PHONE", "")
+        # 從 booking_config.yaml 讀取個資
+        config = BookingConfig.from_yaml(_DEFAULT_CONFIG_PATH)
 
         # 套用使用者指定的參數
         config.date = result.date
