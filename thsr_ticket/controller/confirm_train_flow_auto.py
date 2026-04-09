@@ -12,6 +12,10 @@ from thsr_ticket.remote.http_request import HTTPRequest
 from thsr_ticket.view_model.avail_trains import AvailTrains
 from thsr_ticket.configs.web.param_schema import Train, ConfirmTrainModel
 
+class TrainNotInRangeError(Exception):
+    """時間區間內找不到匹配班次"""
+    pass
+
 
 class ConfirmTrainFlowAuto:
     def __init__(self, client: HTTPRequest, book_resp: Response, config):
@@ -59,9 +63,10 @@ class ConfirmTrainFlowAuto:
             if start_minutes <= train_minutes <= end_minutes:
                 return train
 
-        # 如果沒有完全在區間內的，選第一班（最早的）
-        print(f"  時間區間 {self.config.time_range} 內無完全匹配班次，選擇列表中第一班")
-        return trains[0]
+        # 如果沒有完全在區間內的，不退而求其次，丟錯誤讓外層重試
+        raise TrainNotInRangeError(
+            f"時間區間 {self.config.time_range} 內無匹配班次，需要重試"
+        )
 
 
 def _parse_train_time(time_str: str) -> int:

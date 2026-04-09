@@ -34,6 +34,8 @@ class BookingConfig:
 
     # 自動化設定
     max_captcha_retries: int = 10
+    max_booking_retries: int = 10     # 整體訂票重試次數
+    retry_interval: int = 3           # 重試間隔（秒）
     auto_select_train: bool = True
 
     @classmethod
@@ -59,7 +61,9 @@ class BookingConfig:
                 config.to_station = parse_station(str(to_station))
 
         if automation := data.get("automation"):
-            config.max_captcha_retries = int(automation.get("max_captcha_retries", 5))
+            config.max_captcha_retries = int(automation.get("max_captcha_retries", 10))
+            config.max_booking_retries = int(automation.get("max_booking_retries", 10))
+            config.retry_interval = int(automation.get("retry_interval", 3))
             config.auto_select_train = bool(automation.get("auto_select_train", True))
 
         return config
@@ -174,7 +178,8 @@ def print_config_summary(config: BookingConfig):
     print(f"  終點站:     {to_name}")
     print(f"  票數:       {config.tickets} 張成人票")
     print(f"  座位偏好:   {config.seat_prefer}")
-    print(f"  驗證碼重試: 最多 {config.max_captcha_retries} 次")
+    print(f"  驗證碼重試: 每輪最多 {config.max_captcha_retries} 次")
+    print(f"  訂票重試:   最多 {config.max_booking_retries} 輪 (間隔 {config.retry_interval} 秒)")
     print("=" * 50)
 
 

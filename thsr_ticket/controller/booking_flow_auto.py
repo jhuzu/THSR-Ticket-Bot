@@ -3,6 +3,8 @@
 取代互動式的 BookingFlow，自動完成所有步驟
 """
 
+import time
+
 from requests.models import Response
 
 from thsr_ticket.remote.http_request import HTTPRequest
@@ -16,6 +18,11 @@ class CaptchaInvalidError(Exception):
     pass
 
 
+class BookingFailedError(Exception):
+    """訂票失敗（售完、系統錯誤等），需要整體重試"""
+    pass
+
+
 class AutoBookingFlow:
     def __init__(self, config) -> None:
         self.config = config
@@ -23,34 +30,54 @@ class AutoBookingFlow:
         self.error_feedback = ErrorFeedback()
 
     def run(self) -> Response:
-        max_retries = self.config.max_captcha_retries
-        submitted_count = 0  # 實際提交到高鐵的次數
+        """
+        整體重試迴圈：
+        - 最多重試 max_booking_retries 次（預設 10）
+        - 每次重試間隔 retry_interval 秒（預設 3）
+        - 每次重試都是全新的 session + 驗證碼 + 選車
+        """
+        max_booking_retries = getattr(self.config, 'max_booking_retries', 10)
+        retry_interval = getattr(self.config, 'retry_interval', 3)
+        max_captcha_retries = self.config.max_captcha_retries
 
-        attempt = 0
-        while submitted_count < max_retries:
-            attempt += 1
-            # 每次重試都需要新的 session（驗證碼綁定 session）
-            self.client = HTTPRequest()
+        for booking_attempt in range(1, max_booking_retries + 1):
+            print(f"\n{'='*40}")
+            print(f"  第 {booking_attempt}/{max_booking_retries} 輪訂票")
+            print(f"{'='*40}")
 
-            try:
-                result = self._attempt_booking()
-                if result is not None:
-                    return result
-                # 提交後收到錯誤（驗證碼錯等）
-                submitted_count += 1
-                print(f"  [已提交 {submitted_count}/{max_retries} 次]")
-            except CaptchaInvalidError:
-                # 辨識結果格式不對，不算一次提交，快速重試
-                print("  重新取得驗證碼...")
-                continue
-            except Exception as e:
-                print(f"  嘗試失敗: {e}")
-                submitted_count += 1
+            # 內層：驗證碼重試（同一輪內只重試驗證碼）
+            submitted_count = 0
+            while submitted_count < max_captcha_retries:
+                self.client = HTTPRequest()
 
-            if submitted_count < max_retries:
-                print("  重新嘗試中...")
+                try:
+                    result = self._attempt_booking()
+                    if result is not None:
+                        return result
+                    # 提交後收到錯誤（驗證碼錯等）
+                    submitted_count += 1
+                    print(f"  [驗證碼已提交 {submitted_count}/{max_captcha_retries} 次]")
+                except CaptchaInvalidError:
+                    print("  重新取得驗證碼...")
+                    continue
+                except Exception as e:
+                    from thsr_ticket.controller.confirm_train_flow_auto import TrainNotInRangeError
+                    if isinstance(e, TrainNotInRangeError):
+                        # 區間內無班次，跳到外層重試
+                        print(f"  {e}")
+                        break
+                    print(f"  嘗試失敗: {e}")
+                    submitted_count += 1
 
-        print(f"\n已達最大重試次數 ({max_retries})，訂票失敗。")
+                if submitted_count < max_captcha_retries:
+                    print("  重新嘗試中...")
+
+            # 這一輪失敗了，等待後重試
+            if booking_attempt < max_booking_retries:
+                print(f"\n  本輪訂票未成功，{retry_interval} 秒後重新開始...")
+                time.sleep(retry_interval)
+
+        print(f"\n已達最大重試次數 ({max_booking_retries} 輪)，訂票失敗。")
         print("請嘗試手動訂票或調整設定後重試。")
         return None
 
@@ -68,7 +95,7 @@ class AutoBookingFlow:
         if self._check_error(book_resp.content):
             return None
 
-        # Step 2: 選擇班次
+        # Step 2: 選擇班次（可能 raise TrainNotInRangeError）
         print("正在選擇班次...")
         confirm_train = ConfirmTrainFlowAuto(
             client=self.client,
