@@ -5,7 +5,12 @@ LINE Bot Flask Webhook Server
 
 import os
 import sys
+import time
 import threading
+from datetime import datetime
+
+# 記錄 server 啟動時間，用來判斷是否剛從睡眠喚醒
+_start_time = time.time()
 
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
@@ -53,6 +58,18 @@ HELP_TEXT = """\
 說明 / 幫助 → 顯示此訊息"""
 
 
+@app.route("/ping", methods=["GET", "HEAD"])
+def ping():
+    """Keep-alive 端點，給 UptimeRobot 定期 ping 使用"""
+    uptime = int(time.time() - _start_time)
+    return {"status": "ok", "uptime_seconds": uptime}, 200
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return {"bot": "THSR 訂高鐵", "status": "running"}, 200
+
+
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
@@ -70,6 +87,16 @@ def handle_message(event):
     user_id = event.source.user_id
 
     from thsr_ticket.linebot.message_parser import parse_booking_command, is_help_command
+
+    # 若 server 剛啟動（可能是從睡眠喚醒），先告知使用者稍後重試
+    uptime = time.time() - _start_time
+    if uptime < 15:
+        _reply(
+            event,
+            "Bot 剛從待機狀態喚醒，請稍等 10 秒後再傳一次指令。\n"
+            "（這只有第一次用時才會發生）"
+        )
+        return
 
     # 說明指令
     if is_help_command(text):
