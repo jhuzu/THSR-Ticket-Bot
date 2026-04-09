@@ -1,0 +1,24 @@
+# 高鐵自動訂票設定檔範例
+# 複製此檔案為 booking_config.yaml 並填入你的資訊
+# booking_config.yaml 已加入 .gitignore，不會被提交
+
+personal:
+  id: "A123456789"          # 身分證字號
+  phone: "0912345678"       # 手機號碼
+
+booking:
+  date: "2026-04-15"        # 出發日期（YYYY-MM-DD）
+  time_range: "08:00-10:00" # 搜尋此時間區間內的班次
+  from_station: "台北"       # 支援中文名 / 英文名 / 編號（1-12）
+  to_station: "左營"         # 支援中文名 / 英文名 / 編號（1-12）
+  tickets: 1                # 成人票數（1-10）
+  seat_prefer: "aisle"      # window（靠窗）/ aisle（走道，偏好D/E）/ none（無偏好）
+
+automation:
+  max_captcha_retries: 10   # 驗證碼辨識失敗最大重試次數
+  auto_select_train: true   # 自動選擇時間區間內最早一班車
+
+# 車站對照表：
+# 1. 南港    2. 台北    3. 板橋    4. 桃園
+# 5. 新竹    6. 苗栗    7. 台中    8. 彰化
+# 9. 雲林   10. 嘉義   11. 台南   12. 左營
