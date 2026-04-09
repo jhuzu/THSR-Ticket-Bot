@@ -13,3 +13,4 @@ test.py
 *.code-workspace
 booking_config.yaml
 venv/
+.env

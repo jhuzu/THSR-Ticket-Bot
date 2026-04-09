@@ -1,0 +1,190 @@
+"""
+LINE Bot Flask Webhook Server
+高鐵自動訂票 LINE Bot 主程式
+"""
+
+import os
+import sys
+import threading
+
+from flask import Flask, request, abort
+from linebot import LineBotApi, WebhookHandler
+from linebot.exceptions import InvalidSignatureError
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from dotenv import load_dotenv
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+load_dotenv()
+
+app = Flask(__name__)
+
+# LINE Bot 憑證（從 .env 讀取）
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+
+if not LINE_CHANNEL_SECRET or not LINE_CHANNEL_ACCESS_TOKEN:
+    print("錯誤：缺少 LINE_CHANNEL_SECRET 或 LINE_CHANNEL_ACCESS_TOKEN")
+    print("請確認 .env 檔案設定正確")
+    sys.exit(1)
+
+line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
+handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+# 預設訂票人個資（從 booking_config.yaml 讀取）
+_DEFAULT_CONFIG_PATH = os.path.join(
+    os.path.dirname(__file__), '..', '..', 'booking_config.yaml'
+)
+
+HELP_TEXT = """\
+[高鐵自動訂票 Bot]
+
+指令格式：
+訂票 日期 時間區間 起站→終站 張數
+
+範例：
+  訂票 04/15 08:30-09:00 桃園→台南 2張
+  訂票 04/20 14:00-16:00 台北->左營
+  訂票 2026-05-01 07:00-08:00 南港→高雄 1張
+
+車站：南港、台北、板橋、桃園、新竹、苗栗、
+      台中、彰化、雲林、嘉義、台南、左營
+
+說明 / 幫助 → 顯示此訊息"""
+
+
+@app.route("/callback", methods=["POST"])
+def callback():
+    signature = request.headers["X-Line-Signature"]
+    body = request.get_data(as_text=True)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return "OK"
+
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    text = event.message.text.strip()
+    user_id = event.source.user_id
+
+    from thsr_ticket.linebot.message_parser import parse_booking_command, is_help_command
+
+    # 說明指令
+    if is_help_command(text):
+        _reply(event, HELP_TEXT)
+        return
+
+    # 解析訂票指令
+    result = parse_booking_command(text)
+    if result is None:
+        # 不是訂票指令，提示用法
+        _reply(event, "輸入「說明」查看使用方式，或直接輸入訂票指令：\n訂票 04/15 08:30-09:00 桃園→台南 2張")
+        return
+
+    if not result.success:
+        _reply(event, f"指令格式錯誤：{result.error_msg}\n\n輸入「說明」查看使用方式")
+        return
+
+    # 開始訂票流程（非同步執行，避免 webhook 逾時）
+    _reply(event, _format_booking_start(result))
+    threading.Thread(
+        target=_run_booking,
+        args=(event.reply_token, user_id, result),
+        daemon=True
+    ).start()
+
+
+def _run_booking(reply_token: str, user_id: str, result):
+    """在背景執行訂票，完成後主動推送結果"""
+    from thsr_ticket.auto_booking import BookingConfig
+    from thsr_ticket.controller.booking_flow_auto import AutoBookingFlow
+
+    try:
+        # 從 booking_config.yaml 讀取個資
+        config = BookingConfig.from_yaml(_DEFAULT_CONFIG_PATH)
+
+        # 套用使用者指定的參數
+        config.date = result.date
+        config.time_range = result.time_range
+        config.tickets = result.tickets
+
+        from thsr_ticket.configs.station_utils import parse_station
+        config.from_station = parse_station(result.from_station)
+        config.to_station = parse_station(result.to_station)
+
+        config.validate()
+    except Exception as e:
+        _push(user_id, f"設定錯誤：{e}")
+        return
+
+    # 執行訂票
+    try:
+        flow = AutoBookingFlow(config)
+        resp = flow.run()
+
+        if resp is None:
+            _push(user_id, "訂票失敗，請稍後再試或手動前往高鐵官網訂票。")
+            return
+
+        # 解析結果並推送
+        from thsr_ticket.view_model.booking_result import BookingResult
+        tickets = BookingResult().parse(resp.content)
+        _push(user_id, _format_booking_success(tickets[0]))
+
+    except Exception as e:
+        _push(user_id, f"訂票過程發生錯誤：{e}\n請稍後再試。")
+
+
+def _reply(event, text: str):
+    """回覆訊息"""
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=text)
+    )
+
+
+def _push(user_id: str, text: str):
+    """主動推送訊息"""
+    line_bot_api.push_message(user_id, TextSendMessage(text=text))
+
+
+def _format_booking_start(result) -> str:
+    """格式化訂票開始通知"""
+    return (
+        f"收到訂票請求，開始處理...\n"
+        f"\n"
+        f"日期：{result.date}\n"
+        f"時間：{result.time_range}\n"
+        f"路線：{result.from_station} → {result.to_station}\n"
+        f"票數：{result.tickets} 張\n"
+        f"\n"
+        f"驗證碼辨識中，請稍候..."
+    )
+
+
+def _format_booking_success(ticket) -> str:
+    """格式化訂票成功通知"""
+    return (
+        f"訂票成功！\n"
+        f"{'─' * 20}\n"
+        f"訂位代號：{ticket.id}\n"
+        f"繳費期限：{ticket.payment_deadline}\n"
+        f"{'─' * 20}\n"
+        f"日期：{ticket.date}\n"
+        f"車次：{ticket.train_id}\n"
+        f"{ticket.start_station} {ticket.depart_time} → "
+        f"{ticket.dest_station} {ticket.arrival_time}\n"
+        f"{'─' * 20}\n"
+        f"座位：{ticket.seat}\n"
+        f"票種：{ticket.ticket_num_info}\n"
+        f"總價：{ticket.price}\n"
+        f"{'─' * 20}\n"
+        f"請至官方管道完成付款取票"
+    )
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
