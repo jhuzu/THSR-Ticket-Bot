@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "thsr_ticket/linebot/app.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "thsr_ticket.linebot.app:app"]
