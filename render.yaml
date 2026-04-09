@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: thsr-ticket-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python thsr_ticket/linebot/app.py
+    envVars:
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+    healthCheckPath: /ping
