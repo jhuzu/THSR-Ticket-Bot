@@ -1,82 +1,285 @@
-# 高鐵訂票小幫手
+# 🚄 高鐵自動訂票小幫手
 
-**!!--純研究用途，請勿用於不當用途--!!**
+> 用指令一鍵訂高鐵票，支援 **本機 CLI** 和 **LINE Bot 遠端訂票**。
 
-此程式提供另一種輕便的方式訂購高鐵車票，操作介面為命令列介面。相較於使用網頁訂購，本程式因為省卻了渲染網頁介面的時間，只保留最核心的訂購功能，因此能省下大量等待的時間。
+**⚠️ 純研究用途，請勿用於不當用途。**
 
-**(2025/05/12 update)** 另有 Rust 新版本提供執行檔、早鳥票預訂、會員購票等新功能，可以參考 [thsr-ticket-rs](https://github.com/BreezeWhite/thsr-ticket-rs)
+---
 
-## 執行
+## 功能一覽
 
-本程式由python語言所寫成，因此必須先安裝python才能夠使用。官方下載網址[點這裡](https://www.python.org/downloads/release/python-381/)
+| 功能 | 說明 |
+|------|------|
+| 🎯 自動訂票 | 填好設定就全自動完成，不需手動操作網頁 |
+| 🤖 驗證碼自動辨識 | 使用 OCR（ddddocr）自動辨識驗證碼，辨識失敗自動重試 |
+| 🚉 中文車站名 | 直接填「桃園」「台南」等中文名，也支援英文和編號 |
+| ⏰ 時間區間篩選 | 設定想搭乘的時段，自動選擇區間內最早班次 |
+| 💺 座位偏好 | 可指定靠窗 / 走道 |
+| 🔄 自動重試 | 驗證碼辨識失敗、無班次等情況都會自動重試 |
+| 💬 LINE Bot | 透過 LINE 聊天室直接下指令訂票，結果會推播回來 |
 
-### 方法一 （快速）
-在已經有安裝好python的環境下，執行以下指令
-``` bash
-pip install git+https://github.com/BreezeWhite/THSR-Ticket.git
+---
 
-# 執行
-thsr-ticket
-```
+## 快速開始
 
-### 方法二
-首先先將程式碼下載到本機，執行以下指令或是直接按右上方的下載按鈕
+### 1. 環境需求
 
-```
+- **Python 3.9+**（建議 3.10 或 3.11）
+- macOS / Linux / Windows 皆可
+
+### 2. 下載專案
+
+```bash
 git clone https://github.com/BreezeWhite/THSR-Ticket.git
+cd THSR-Ticket
 ```
 
-再來進入到資料夾中
+### 3. 建立虛擬環境（建議）
 
-```
-cd thsr_ticket
-```
+```bash
+python -m venv venv
 
-安裝必要的套件
+# macOS / Linux
+source venv/bin/activate
 
-```
-python -m pip install -r requirements.txt
-```
-
-最後執行程式
-
-```
-python thsr_ticket/main.py
+# Windows
+venv\Scripts\activate
 ```
 
+### 4. 安裝套件
 
+```bash
+pip install -r requirements.txt
+```
 
-## 注意事項!!!
+---
 
-本程式依舊有許多尚未完成的部分，僅具備基本訂購的功能，若是僅需要訂購成人票、且無特殊需求者，此程式對您而言是加速訂購流程的方便小工具。不符合以上描述者，目前仍建議使用官方網頁進行訂購。
+## 使用方式一：設定檔訂票（推薦 👍）
 
-#### 提供功能
+最簡單的方式，只要填一份設定檔就好。
 
-- [x] 選擇啟程、到達站
-- [x] 選擇出發日期、時間
-- [x] 選擇班次
-- [x] 選擇**"成人"**票數
-- [x] 輸入驗證碼
-- [x] 輸入身分證字號
-- [x] 輸入手機號碼
-- [x] 保留此次輸入紀錄，下次可快速選擇此次紀錄
+### Step 1：建立設定檔
 
-#### 未提供功能
+```bash
+cp booking_config.example.yaml booking_config.yaml
+```
 
-以下功能為未提供輸入的選項，但程式具備相關功能，可依照自身需求、對程式進行修改
+### Step 2：編輯設定檔
 
-- [ ] 選擇車廂種類(標準/商務)
-- [ ] 座位喜好(靠窗/走道)
-- [ ] 訂位方式(依時間搜尋車次/直接輸入車次號碼)
-- [ ] 輸入孩童/愛心/敬老/學生優惠票數
-- [ ] 僅顯示早鳥優惠票
+用任何文字編輯器打開 `booking_config.yaml`，修改成你的資訊：
 
-#### 未完成功能
+```yaml
+personal:
+  id: "A123456789"          # 你的身分證字號
+  phone: "0912345678"       # 你的手機號碼
 
-- [ ] 重新產生認證碼
-- [ ] 語音播放認證碼
-- [ ] 重新查詢車次
-- [ ] 輸入護照號碼
-- [ ] 輸入市話
-- [ ] 輸入電子郵件
-- [ ] 會員購票
+booking:
+  date: "2026-04-15"        # 出發日期（YYYY-MM-DD）
+  time_range: "08:00-10:00" # 想搭乘的時間區間
+  from_station: "桃園"       # 起站
+  to_station: "台南"         # 到站
+  tickets: 2                # 票數（1-10）
+  seat_prefer: "aisle"      # window 靠窗 / aisle 走道 / none 無偏好
+
+automation:
+  max_captcha_retries: 10   # 驗證碼辨識失敗重試次數
+  auto_select_train: true   # 自動選最早一班
+```
+
+### Step 3：執行
+
+```bash
+python -m thsr_ticket.auto_booking --config booking_config.yaml
+```
+
+成功畫面會像這樣：
+
+```
+==================================================
+        高鐵自動訂票系統
+==================================================
+  身分證字號: A12*******
+  手機號碼:   0912******
+  出發日期:   2026-04-15
+  時間區間:   08:00-10:00
+  起始站:     桃園
+  終點站:     台南
+  票數:       2 張成人票
+  座位偏好:   aisle
+==================================================
+
+正在填寫訂票資訊...
+正在選擇班次...
+  自動選擇: 車次  613 (08:06~09:42)
+正在確認訂票...
+
+訂票成功！請使用官方提供的管道完成後續付款以及取票!!
+```
+
+> 💡 訂票成功後，記得在**繳費期限**前完成付款！
+
+---
+
+## 使用方式二：命令列參數
+
+如果不想建設定檔，也可以直接用命令列參數：
+
+```bash
+python -m thsr_ticket.auto_booking \
+  --id A123456789 \
+  --phone 0912345678 \
+  -d 2026-04-15 \
+  -t 08:00-10:00 \
+  -f 桃園 \
+  -o 台南 \
+  -n 2 \
+  --seat-prefer aisle
+```
+
+也可以**混用**：設定檔 + 命令列，命令列的值會覆蓋設定檔：
+
+```bash
+# 設定檔寫好個資，只在命令列指定日期和時間
+python -m thsr_ticket.auto_booking -c booking_config.yaml -d 2026-04-20 -t 14:00-18:00
+```
+
+### 所有命令列參數
+
+| 參數 | 縮寫 | 說明 | 範例 |
+|------|------|------|------|
+| `--config` | `-c` | YAML 設定檔路徑 | `booking_config.yaml` |
+| `--date` | `-d` | 出發日期 | `2026-04-15` |
+| `--time-range` | `-t` | 時間區間 | `08:00-10:00` |
+| `--from-station` | `-f` | 起站 | `桃園` |
+| `--to-station` | `-o` | 到站 | `台南` |
+| `--tickets` | `-n` | 票數 | `2` |
+| `--id` | | 身分證字號 | `A123456789` |
+| `--phone` | | 手機號碼 | `0912345678` |
+| `--seat-prefer` | | 座位偏好 | `window` / `aisle` / `none` |
+
+---
+
+## 使用方式三：LINE Bot 訂票
+
+透過 LINE 聊天視窗直接下指令，適合部署到雲端（如 Render）後遠端使用。
+
+### LINE Bot 指令格式
+
+```
+訂票 日期 時間區間 起站→到站 張數
+```
+
+### 範例
+
+```
+訂票 04/15 08:30-09:00 桃園→台南 2張
+訂票 2026-05-01 07:00-08:00 南港→高雄 1張
+訂票 04/20 14:00-16:00 台北->左營
+```
+
+> 張數可以省略，預設為 1 張。
+
+傳入「**說明**」或「**幫助**」可查看使用說明。
+
+### LINE Bot 部署
+
+1. 複製環境變數範本：
+   ```bash
+   cp .env.example .env
+   ```
+
+2. 在 `.env` 中填入你的 LINE Bot 憑證：
+   ```
+   LINE_CHANNEL_SECRET=你的_channel_secret
+   LINE_CHANNEL_ACCESS_TOKEN=你的_access_token
+   ```
+
+3. 啟動 LINE Bot Server：
+   ```bash
+   python -m thsr_ticket.linebot.app
+   ```
+
+4. 將 Webhook URL 設為 `https://你的網址/callback`
+
+---
+
+## 車站對照表
+
+| 編號 | 車站 | 英文 |
+|:----:|:----:|:----:|
+| 1 | 南港 | Nangang |
+| 2 | 台北 | Taipei |
+| 3 | 板橋 | Banqiao |
+| 4 | 桃園 | Taoyuan |
+| 5 | 新竹 | Hsinchu |
+| 6 | 苗栗 | Miaoli |
+| 7 | 台中 | Taichung |
+| 8 | 彰化 | Changhua |
+| 9 | 雲林 | Yunlin |
+| 10 | 嘉義 | Chiayi |
+| 11 | 台南 | Tainan |
+| 12 | 左營 | Zuouing |
+
+> 💡 輸入車站時，中文名、英文名、編號（1-12）都可以。「高雄」也可以用，會自動對應到「左營」。
+
+---
+
+## 常見問題
+
+### Q：驗證碼一直失敗怎麼辦？
+
+驗證碼辨識使用 OCR 模型，不是每次都能成功。程式會自動重試，預設每輪最多 10 次。如果還是不行，可以把 `max_captcha_retries` 調高：
+
+```yaml
+automation:
+  max_captcha_retries: 20
+```
+
+### Q：訂票失敗顯示「時間區間內無匹配班次」？
+
+代表你設定的 `time_range` 太窄，沒有車次落在範圍內。請放寬時間區間，例如改成 `06:00-23:00`。
+
+### Q：可以訂學生票 / 敬老票嗎？
+
+目前只支援**成人票**。
+
+### Q：可以選擇特定車次嗎？
+
+目前只支援依時間區間自動選擇最早的一班。如果想搭特定車次，可以將 `time_range` 設定成該車次的前後幾分鐘。
+
+### Q：訂票成功後怎麼付款？
+
+訂票成功後會顯示**訂位代號**和**繳費期限**，請前往以下管道付款：
+- 高鐵官網 / APP
+- 超商 ibon / FamiPort
+- 高鐵車站售票窗口
+
+---
+
+## 專案結構
+
+```
+THSR-Ticket/
+├── booking_config.yaml          # 你的訂票設定（不會被 git 追蹤）
+├── booking_config.example.yaml  # 設定檔範本
+├── .env                         # LINE Bot 憑證（不會被 git 追蹤）
+├── .env.example                 # 環境變數範本
+├── requirements.txt             # Python 套件清單
+└── thsr_ticket/
+    ├── auto_booking.py          # 自動訂票 CLI 入口
+    ├── main.py                  # 互動式訂票入口（舊版）
+    ├── controller/              # 訂票流程控制
+    ├── configs/                 # 車站對照、參數設定
+    ├── ml/                      # 驗證碼 OCR 辨識
+    ├── linebot/                 # LINE Bot 整合
+    ├── model/                   # 資料模型
+    ├── remote/                  # HTTP 請求
+    ├── view/                    # 結果顯示
+    └── view_model/              # 畫面資料解析
+```
+
+---
+
+## 致謝
+
+本專案 fork 自 [BreezeWhite/THSR-Ticket](https://github.com/BreezeWhite/THSR-Ticket)，加入了自動驗證碼辨識、設定檔訂票、LINE Bot 遠端訂票等功能。
