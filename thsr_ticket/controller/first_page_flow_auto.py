@@ -6,7 +6,7 @@ import json
 from typing import Tuple
 
 from bs4 import BeautifulSoup
-from requests.models import Response
+from curl_cffi.requests import Response
 
 from thsr_ticket.remote.http_request import HTTPRequest
 from thsr_ticket.configs.web.param_schema import BookingModel
@@ -58,6 +58,8 @@ class FirstPageFlowAuto:
 
         json_params = book_model.json(by_alias=True)
         dict_params = json.loads(json_params)
+        # 過濾掉 None 值，避免送出 "None" 字串給高鐵網站
+        dict_params = {k: v for k, v in dict_params.items() if v is not None}
         resp = self.client.submit_booking_form(dict_params)
         return resp
 
