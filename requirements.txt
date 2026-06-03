@@ -12,3 +12,4 @@ ddddocr>=1.4.0
 pyyaml>=6.0
 flask>=3.0
 python-dotenv>=1.0
+curl_cffi>=0.5
